@@ -39,7 +39,6 @@ struct Agent* createAgent() {
 // You will probably need to add some procedures and struct etc.
 //
 
-
 /**
  * You might find these declarations helpful.
  *   Note that Resource enum had values 1, 2 and 4 so you can combine resources;
@@ -48,53 +47,12 @@ struct Agent* createAgent() {
 enum Resource            {    MATCH = 1, PAPER = 2,   TOBACCO = 4};
 char* resource_name [] = {"", "match",   "paper", "", "tobacco"};
 
-struct Smoker {
-  struct Agent* agent;
-  enum Resource resource;
-};
-
-
 // # of threads waiting for a signal. Used to ensure that the agent
 // only signals once all other threads are ready.
 int num_active_threads = 0;
-int resources_on_table = 0;
 
 int signal_count [5];  // # of times resource signalled
 int smoke_count  [5];  // # of times smoker with resource smoked
-
-void* smoker(void* v) {
-  struct Smoker* s = v;
-  struct Agent* a = s->agent;
-  enum Resource resource = s->resource;
-
-  uthread_mutex_lock(a->mutex);
-  num_active_threads++;
-
-  while (1) {
-    if ((resources_on_table & ~resource) == (MATCH | PAPER | TOBACCO) - resource) {
-      resources_on_table = 0;
-      smoke_count[resource]++;
-      VERBOSE_PRINT("smoker %s smoked\n", resource_name[resource]);
-      uthread_cond_signal(a->smoke);
-    } else {
-      switch (resource) {
-        case MATCH:
-          uthread_cond_wait(a->match);
-          break;
-        case PAPER:
-          uthread_cond_wait(a->paper);
-          break;
-        case TOBACCO:
-          uthread_cond_wait(a->tobacco);
-          break;
-      }
-      resources_on_table |= resource;
-    }
-  }
-
-  uthread_mutex_unlock(a->mutex);
-  return NULL;
-}
 
 /**
  * This is the agent procedure.  It is complete and you shouldn't change it in
@@ -172,24 +130,12 @@ int main (int argc, char** argv) {
   
   struct Agent* a = createAgent();
   uthread_t agent_thread;
-  uthread_t smokers[3];
 
   uthread_init(5);
   
   // TODO
 
-    struct Smoker smokers_data[3] = {
-    { .agent = a, .resource = MATCH },
-    { .agent = a, .resource = PAPER },
-    { .agent = a, .resource = TOBACCO }
-  };
-
-
   agent_thread = uthread_create(agent, a);
-
-   for (int i = 0; i < 3; i++) {
-    smokers[i] = uthread_create(smoker, &smokers_data[i]);
-  }
   uthread_join(agent_thread, NULL);
 
   assert (signal_count [MATCH]   == smoke_count [MATCH]);
